@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: GoGoMount
+## Version: 1.0.7
+## Notes: One-key solution for mounting/dismounting, supports AQ40 bugs
+## Author: Tak teh Troll @ Shadowsong EU
+## Attempt at Updating for classic Era (2023): Tahuma Shadowstrike(AU) - Season of Discovery
+## SavedVariablesPerCharacter: GoGo_NoSpellMounts
+GoGoMount.xml

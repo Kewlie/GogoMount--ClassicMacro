@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="GOGONAME" header="GOGOHEADER" category="GoGo Mount">
+		GoGo_Go();
+	</Binding>
+</Bindings>
