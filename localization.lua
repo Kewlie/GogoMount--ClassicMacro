@@ -267,6 +267,7 @@ else -- english & default localization
     GoGo_MountString = "Increases speed by" -- the string in second line of tooltip
     GoGo_WolfString = "Ghost Wolf"
     GoGo_CheetahString = "Travel Form"
+	GoGo_CatString = "Cat Form"
 	GoGo_AquaticString = "Aquatic Form"
 
     GoGo_Mounts = {

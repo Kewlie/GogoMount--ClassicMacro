@@ -1,32 +1,44 @@
---local itemInfo = {}
-function CreateOrUpdateMacro(itemID, spellName, auraName, druidMacroString)
+local DMS = nil
+
+function GoGo_OnLoad()
+    SlashCmdList["GOGOMOUNT"] = function(msg) GoGo_Slash(msg) end
+    SLASH_GOGOMOUNT1 = "/gogo"
+end
+
+function CreateOrUpdateMacro(itemName, spellName, DMS, auraName, pMounted)
+    print("just Recieved macro run, itemName:", itemName, " spellName:", spellName, " DMS:", DMS, " auraName:", auraName,
+        " pMounted:", pMounted)
     local macroContent = {}
-    if auraName then
+    local macroIndex = GetMacroIndexByName("GoGoMacro")
+    if itemName then
+        table.insert(macroContent, "#showtooltip item:" .. tostring(itemName))
+        table.insert(macroContent, "/use [nocombat,nomounted] item:" .. tostring(itemName))
+    elseif spellName then
+        table.insert(macroContent, "#showtooltip ")
+        table.insert(macroContent, "/cast [nocombat,nomounted][noform] " .. spellName)
+        table.insert(macroContent, "/stopmacro [nomounted]")
+    elseif DMS then
+        local pLvL = UnitLevel("player")
+        local druidForms = GoGo_WtfMounts["DRUID"]
+        if pLvL >= 30 and IsPlayerSpell(783) and IsPlayerSpell(1066) then
+            table.insert(macroContent, "#showtooltip")
+            table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[1])
+        elseif pLvL <= 30 and IsPlayerSpell(783) and not IsPlayerSpell(1066) then
+            table.insert(macroContent, "#showtooltip")
+            table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[2])
+        end
+    elseif auraName then
         table.insert(macroContent, "#showtooltip " .. auraName)
         table.insert(macroContent, "/run print(\"Attempting to Dismount!\")")
-        table.insert(macroContent, "/dismount [mounted]")
         table.insert(macroContent, "/cancelform [form]")
         table.insert(macroContent, "/cancelaura " .. auraName)
-    else
-        if spellName then
-            table.insert(macroContent, "#showtooltip ")
-            table.insert(macroContent, "/cast [nocombat,nomounted][noform] " .. spellName)
-            table.insert(macroContent, "/stopmacro [nomounted]")
-        end
-        if itemID then
-            local itemName = GetItemInfo(itemID)
-            if itemName then
-                table.insert(macroContent, "#showtooltip ")
-                table.insert(macroContent, "/use [nocombat,nomounted] " .. tostring(itemName))
-            end
-        end
-        if druidMacroString then
-            table.insert(macroContent, "#showtooltip")
-            table.insert(macroContent, druidMacroString)
+    elseif pMounted then
+        if pMounted == true then
+            table.insert(macroContent, "#show\n")
+            table.insert(macroContent, "/run print(\"Attempting to Dismount!\")")
+            table.insert(macroContent, "/dismount [mounted]\n")
         end
     end
-
-    local macroIndex = GetMacroIndexByName("GoGoMacro")
     if not macroIndex then
         CreateMacro("GoGoMacro", "INV_MISC_QUESTIONMARK", table.concat(macroContent, "\n"))
     else
@@ -34,138 +46,168 @@ function CreateOrUpdateMacro(itemID, spellName, auraName, druidMacroString)
     end
 end
 
-function GoGo_IsMounted()
-    local mountedAuraName = nil
-    for i = 1, 40 do -- Maximum number of buffs is 40
-        local name, _, _, _, _, _, _, _, _, spellID = UnitAura("player", i, "HELPFUL|PASSIVE")
-        if not name then
-            break -- No more auras to check
-        end
-        if name == GoGo_AquaticString or
-            string.find(name, GoGo_WolfString) or
-            string.find(name, GoGo_CheetahString) then
-            mountedAuraName = name
-            return true, mountedAuraName -- Player is mounted, return the aura name
-            end
-        end
+function GoGo_OnLoad()
+    SlashCmdList["GOGOMOUNT"] = function(msg) GoGo_Slash(msg) end
+    GoGo_NoSpellMounts = {}
+    CreateMacro("GoGoMacro", "INV_MISC_QUESTIONMARK", "/run print(\"Macro Creation)\"")
+    SLASH_GOGOMOUNT1 = "/gogo"
+end
 
-    return false, mountedAuraName -- Player is not mounted
+function tableContains(table, element)
+    for _, value in ipairs(table) do
+        if value == element then
+            return true
+        end
+    end
+    return false
 end
 
 function GoGo_Go()
-    local GoGo_Mounted, auraName = GoGo_IsMounted()
-    if GoGo_Mounted then
-        print("You are already mounted with:", auraName)
-        CreateOrUpdateMacro(nil, nil, auraName)
+    -- Check if player is already mounted
+    if IsMounted() == false then
+        GoGo_IsMounted()
+    end
+    local pMounted = GoGo_IsMounted()
+    if pMounted == true then
+        CreateOrUpdateMacro(nil, nil, nil, nil, pMounted)
     else
         local location = GetRealZoneText()
-        GoGo_GotMounts = GoGo_GetMounts(all)
-        if not UnitAffectingCombat("player") then
-            local class = select(2, UnitClass("player")) -- Get the player's class
-            if class == "DRUID" then
-                local druidForms = GoGo_WtfMounts["DRUID"]
-                if druidForms then
-                    -- Check if both forms are available
-                    if #druidForms > 1 then
-                        druidMacroString = "/use [swimming] " ..
-                            druidForms[3] .. "; [outdoors]" .. druidForms[1] .. ";" .. druidForms[2]
-                        CreateOrUpdateMacro(nil, nil, nil, druidMacroString)
-                        return
-                    end
-                end
-            else
-                print("your not playeing the druid class, you are currently playing a ", select(1, UnitClass("player")))
-                -- this is for all classes other than a druid
-            end
+        print("Your location is: ", location, " Debug: GoGo_Go")
+
+        if UnitAffectingCombat("player") then
+            print("we are in combat! Debug: GoGo_Go")
+            GoGo_GotMounts = GoGo_GetMounts(GoGo_WtfMounts)
         elseif location == "Ahn'Qiraj" then
-            GoGo_GotMounts = GoGo_GetMounts(GoGo_Bugs) -- Ahn'Qiraj mounts
+            print("We are in ", location, " Debug: GoGo_Go")
+            GoGo_GotMounts = GoGo_GetMounts(GoGo_Bugs)
         else
+            print("Sending GetMounts function call")
             GoGo_GotMounts = GoGo_GetMounts(GoGo_Mounts)
-        end
-        if GoGo_GotMounts and #GoGo_GotMounts < 1 then
-            print("Ha Ha Scrub, You have no Mounts!") -- no mounts found
+        end --if location/ combat
+
+        if not GoGo_GotMounts or (table.getn(GoGo_GotMounts) == 0) then
             return
         else
-            local GoGo_Mount
-            if GoGo_GotMounts and #GoGo_GotMounts >= 1 then
-                local randomIndex = math.random(1, #GoGo_GotMounts)
-                GoGo_Mount = GoGo_GotMounts[randomIndex]
-                print(GoGo_Mount)
+            GoGo_Mount = GoGo_GotMounts[math.random(table.getn(GoGo_GotMounts))]
+        end
+        if GoGo_Mount.spell then
+            local pclass = UnitClass("player")
+            if pclass == "Druid" then
+                CreateOrUpdateMacro(nil, nil, DMS, nil, nil)
+                local spellname = GoGo_GotMounts.spell[1]
+                CreateOrUpdateMacro(nil, spellName, nil, nil, nil)
             else
-                print("No mounts found.")
-                return -- Add this line to exit the function when no mounts are found
-            end
-            if GoGo_Mount and GoGo_Mount.spell then
-                local spellName = GoGo_Mount.name
-                CreateOrUpdateMacro(nil, spellName, nil, nil) -- Pass nil for itemID
-            else
-                local itemID = GoGo_Mount.itemID
-                CreateOrUpdateMacro(itemID, nil, nil, nil) -- Pass the itemID for itemID
+                local itemName = GoGo_GotMounts[1].name
+                if not IsMounted() and not itemName == nil then
+                    local itemName = GoGo_GotMounts[1].name
+                    print("Passing", itemName, "to CreateOrUpdateMacro")
+                    CreateOrUpdateMacro(itemName, nil, nil, nil, nil, nil)
+                else
+                end
             end
         end
     end
 end
 
-function GoGo_GetMounts(all)
-    if all == nil then print("all has no representation") end
-    local list = {}
-    if all and #all > 0 then
-        -- Iterate over all items in the player's inventory
-        for bag = 0, NUM_BAG_FRAMES do
-            for slot = 1, C_Container.GetContainerNumSlots(bag) do
-                local itemLink = C_Container.GetContainerItemLink(bag, slot)
-                print(itemLink, "Getting Item Link Works")                   -- Get item link
-                local itemInfo = C_Container.GetContainerItemInfo(bag, slot) -- Get item info
-                local itemName = itemInfo and itemInfo.itemName              -- Get item name
-                print(itemInfo.itemName, "this should me the value of itemInfo.itemName")
-                if string.find(itemName, table.concat(list, ",")) then
-                    print("we should have found an item to insert into the \"list\" table for randomizing")
-                    -- Insert mount into list
-                    table.insert(list, {
-                        itemName = itemName,
-                        itemID = itemInfo.itemID,
-                        itemLink = itemLink,
-                        bag = bag,
-                        slot = slot,
-                    })
+function GoGo_IsMounted()
+    local pMounted = false
+    print("Debug: IsMounted Function called")
+    if IsMounted() == true then
+        pMounted = true
+    end
+    local playerAuras = {}
+    if pMounted == false then
+        for i = 1, 20 do
+            local auraName, _, _, _, _, _, _, _, _, _ = UnitAura("player", i, "HELPFUL|PASSIVE")
+            table.insert(playerAuras, auraName)
+            -- Check if the aura name matches any specific mount aura names
+            if (auraName == GoGo_AquaticString) or (auraName == GoGo_WolfString) or (auraName == GoGo_CheetahString) or (auraName == GoGo_CatString) then
+                --auraName = name
+                CreateOrUpdateMacro(nil, nil, nil, auraName)
+                pMounted = true
+            else
+                if auraName then
+                    GoGo_GetMounts(GoGo_Mounts)
+                    print("Sent GoGo_GetMounts(GoGo_Mounts)")
                 end
-                print("table insertion values - ", itemName, itemInfo.itemID, itemLink, "bag,slot", bag, ",", slot)
             end
         end
-        if GoGo_NoSpellMounts then
-            local _, class = UnitClass("player")
-            if all[class] then
-                for _, spellName in pairs(all[class]) do
-                    local spellID = select(7, GetSpellInfo(spellName))
-                    if spellID then
-                        local name = GetSpellInfo(spellID)
-                        if name then
-                            table.insert(list, { name = name, spell = true })
+        return false
+    elseif pMounted == true then
+        print("are we mounted?", pMounted)
+    end
+    print("Debug GoGo: Player Mounted:", playerMounted)
+    return true
+end
+
+function GoGo_GetMounts(all)
+    print("GetMounts Call")
+    local list = {}
+    local playerInven = {}
+    if (table.getn(all) > 0) then
+        -- Run a scan on the player's inventory
+        for bag = 0, NUM_BAG_FRAMES do
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local itemInfo = C_Container.GetContainerItemInfo(bag, slot)
+                if itemInfo then
+                    local name = itemInfo.itemName
+                    local itemID = itemInfo.itemID
+                    table.insert(playerInven, { itemName = itemInfo.itemName, itemID = itemID, bag = bag, slot = slot })
+                    for _, value in ipairs(all) do
+                        if string.find(name, value) then
+                            table.insert(list, { name = name, itemID = itemID, bag = bag, slot = slot, })
                         end
                     end
                 end
             end
         end
-        if #list > 0 then
-            return list
-        elseif (all == GoGo_Mounts) then
-            return GoGo_GetMounts(GoGo_NubMounts)
-        elseif (all == GoGo_NubMounts) then
-            return GoGo_GetMounts(GoGo_WtfMounts)
-        elseif (all == GoGo_WtfMounts) then
-            return list
-        else
-            return GoGo_GetMounts(GoGo_Mounts)
-        end --if
-        for i, mount in ipairs(list) do
-            print("Mount", i, ":", mount.itemName or mount.name)
+    end
+    if not GoGo_NoSpellMounts then
+        local _, class = UnitClass("player")
+        print("player is: ", class)
+        if all[class] then
+            for tabIndex = 1, GetNumSpellTabs() do
+                local _, _, offset, numSpells = GetSpellTabInfo(tabIndex)
+                for i = (1 + offset), (offset + numSpells) do
+                    local spellName = GetSpellBookItemName(i, "spell")
+                    print(spellName)
+                    if type(all[class]) == "string" then
+                        -- If the value associated with the class key is a string (e.g., "SHAMAN")
+                        if spellName == all[class] then
+                            table.insert(list, { name = spellName, spell = true })
+                            DMS = DRUID
+                        end
+                    elseif type(all[class]) == "table" then
+                        -- If the value associated with the class key is a table (e.g., "DRUID")
+                        for _, v in ipairs(all[class]) do
+                            if spellName == v then
+                                table.insert(list, { name = spellName, spell = true })
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
-end
-
-function GoGo_OnLoad()
-    SlashCmdList["GOGOMOUNT"] = function(msg) GoGo_Slash(msg) end
-    SLASH_GOGOMOUNT1 = "/gogo"
+    if (table.getn(list) > 0) then
+        print("Mount list:")
+        for _, mount in ipairs(list) do
+            print(mount.name)
+        end
+        return list
+    end
+    if (all == GoGo_Mounts) then
+        print("Running GoGo_Mounts")
+        return GoGo_GetMounts(GoGo_NubMounts)
+    elseif (all == GoGo_NubMounts) then
+        print("Running GoGo_NubMounts")
+        return GoGo_GetMounts(GoGo_WtfMounts)
+    elseif (all == GoGo_WtfMounts) then
+        print("Running GoGo_WtfMounts")
+        --return list
+    else
+        return GoGo_GetMounts(GoGo_Mounts)
+    end
 end
 
 function GoGo_Slash(msg)
