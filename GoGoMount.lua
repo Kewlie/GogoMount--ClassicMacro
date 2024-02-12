@@ -14,18 +14,24 @@ function CreateOrUpdateMacro(itemName, spellName, DMS, auraName, pMounted)
         table.insert(macroContent, "#showtooltip item:" .. tostring(itemName))
         table.insert(macroContent, "/use [nocombat,nomounted] item:" .. tostring(itemName))
     elseif spellName then
-        table.insert(macroContent, "#showtooltip ")
+        table.insert(macroContent, "#showtooltip " .. spellName)
         table.insert(macroContent, "/cast [nocombat,nomounted][noform] " .. spellName)
         table.insert(macroContent, "/stopmacro [nomounted]")
     elseif DMS then
         local pLvL = UnitLevel("player")
-        local druidForms = GoGo_WtfMounts["DRUID"]
-        if pLvL >= 30 and IsPlayerSpell(783) and IsPlayerSpell(1066) then
-            table.insert(macroContent, "#showtooltip")
-            table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[1])
-        elseif pLvL <= 30 and IsPlayerSpell(783) and not IsPlayerSpell(1066) then
-            table.insert(macroContent, "#showtooltip")
-            table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[2])
+        local druidForms = GoGo_WtfMounts.DRUID
+        if DMS == "DRUID" then
+            if pLvL >= 30 and IsPlayerSpell(783) and IsPlayerSpell(1066) then
+                table.insert(macroContent, "#showtooltip")
+                table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[1])
+            elseif pLvL <= 30 and IsPlayerSpell(783) and not IsPlayerSpell(1066) then
+                table.insert(macroContent, "#showtooltip")
+                table.insert(macroContent, "/use [swimming] " .. druidForms[3] .. "; [outdoors]" .. druidForms[2])
+            elseif DMS == "SHAMAN" then
+                local gWolf = GoGo_WtfMounts.SHAMAN[1]
+                table.insert(macroContent, "#showtooltip Ghost Wolf")
+                table.insert(macroContent, "/cast [outdoors] " .. gWolf)
+            end
         end
     elseif auraName then
         table.insert(macroContent, "#showtooltip " .. auraName)
@@ -34,7 +40,6 @@ function CreateOrUpdateMacro(itemName, spellName, DMS, auraName, pMounted)
         table.insert(macroContent, "/cancelaura " .. auraName)
     elseif pMounted then
         if pMounted == true then
-            table.insert(macroContent, "#show\n")
             table.insert(macroContent, "/run print(\"Attempting to Dismount!\")")
             table.insert(macroContent, "/dismount [mounted]\n")
         end
@@ -49,18 +54,19 @@ end
 function GoGo_OnLoad()
     SlashCmdList["GOGOMOUNT"] = function(msg) GoGo_Slash(msg) end
     GoGo_NoSpellMounts = {}
-    CreateMacro("GoGoMacro", "INV_MISC_QUESTIONMARK", "/run print(\"Macro Creation)\"")
     SLASH_GOGOMOUNT1 = "/gogo"
+    CreateMacro("GoGoMacro", "INV_MISC_QUESTIONMARK", nil)
 end
 
-function tableContains(table, element)
+--[[function TableContains(table, element)
     for _, value in ipairs(table) do
         if value == element then
             return true
         end
     end
     return false
-end
+end]]
+      --
 
 function GoGo_Go()
     -- Check if player is already mounted
@@ -91,19 +97,19 @@ function GoGo_Go()
             GoGo_Mount = GoGo_GotMounts[math.random(table.getn(GoGo_GotMounts))]
         end
         if GoGo_Mount.spell then
+            local itemName
             local pclass = UnitClass("player")
             if pclass == "Druid" then
                 CreateOrUpdateMacro(nil, nil, DMS, nil, nil)
-                local spellname = GoGo_GotMounts.spell[1]
+            elseif not pclass == "DRUID" then
+                local spellName = GoGo_GotMounts[1].name
                 CreateOrUpdateMacro(nil, spellName, nil, nil, nil)
+            end
+            if not IsMounted() and not itemName == nil then
+                itemName = GoGo_GotMounts[1].name
+                print("Passing", itemName, "to CreateOrUpdateMacro")
+                CreateOrUpdateMacro(itemName, nil, nil, nil, nil)
             else
-                local itemName = GoGo_GotMounts[1].name
-                if not IsMounted() and not itemName == nil then
-                    local itemName = GoGo_GotMounts[1].name
-                    print("Passing", itemName, "to CreateOrUpdateMacro")
-                    CreateOrUpdateMacro(itemName, nil, nil, nil, nil, nil)
-                else
-                end
             end
         end
     end
@@ -123,20 +129,18 @@ function GoGo_IsMounted()
             -- Check if the aura name matches any specific mount aura names
             if (auraName == GoGo_AquaticString) or (auraName == GoGo_WolfString) or (auraName == GoGo_CheetahString) or (auraName == GoGo_CatString) then
                 --auraName = name
-                CreateOrUpdateMacro(nil, nil, nil, auraName)
+                CreateOrUpdateMacro(nil, nil, nil, auraName, nil)
                 pMounted = true
             else
-                if auraName then
-                    GoGo_GetMounts(GoGo_Mounts)
-                    print("Sent GoGo_GetMounts(GoGo_Mounts)")
-                end
+                --GoGo_GetMounts(GoGo_Mounts)
+                --print("Sent GoGo_GetMounts(GoGo_Mounts)")
             end
         end
         return false
     elseif pMounted == true then
         print("are we mounted?", pMounted)
     end
-    print("Debug GoGo: Player Mounted:", playerMounted)
+    print("Debug GoGo: Player Mounted:", pMounted)
     return true
 end
 
@@ -175,7 +179,7 @@ function GoGo_GetMounts(all)
                         -- If the value associated with the class key is a string (e.g., "SHAMAN")
                         if spellName == all[class] then
                             table.insert(list, { name = spellName, spell = true })
-                            DMS = DRUID
+                            DMS = "DRUID"
                         end
                     elseif type(all[class]) == "table" then
                         -- If the value associated with the class key is a table (e.g., "DRUID")
